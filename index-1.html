@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ShareLab – Trusted Resource Sharing</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mu:#5d6773;--bd:#dde1e6;--ac:#2457d6;--ok:#17803d;--bad:#c62828;--warn:#b26a00;--chip:#eef1f5}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171b;--card:#1d2127;--tx:#e8ebef;--mu:#9aa5b1;--bd:#2d333b;--ac:#6b93ff;--ok:#4cc27a;--bad:#ff7b72;--warn:#e3a33b;--chip:#272d35}}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--bd);padding:10px 14px;position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+h1{font-size:17px;margin:0 0 6px}h2{font-size:16px;margin:18px 0 8px}h3{font-size:15px;margin:0}
+main{max-width:860px;margin:0 auto;padding:12px 14px 60px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+select,input,textarea,button{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:7px 9px}
+button{cursor:pointer;background:var(--ac);color:#fff;border-color:var(--ac)}button.s{background:var(--card);color:var(--tx);border-color:var(--bd)}button.g{background:var(--ok);border-color:var(--ok)}button.r{background:var(--bad);border-color:var(--bad)}button.w{background:var(--warn);border-color:var(--warn)}
+nav{display:flex;gap:6px;overflow-x:auto;padding-top:8px}nav button{white-space:nowrap;background:var(--chip);color:var(--tx);border-color:var(--chip)}nav button.on{background:var(--ac);color:#fff}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin:10px 0}
+.chip{display:inline-block;background:var(--chip);border-radius:99px;padding:2px 9px;font-size:12px;margin:2px 4px 2px 0}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}.mu{color:var(--mu);font-size:13px}
+.st{font-weight:600;text-transform:capitalize}
+.grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin:8px 0}
+label{display:block;font-size:12px;color:var(--mu)}input,select,textarea{width:100%}
+.log{border-left:3px solid var(--bd);padding:2px 0 2px 9px;margin:6px 0;font-size:13px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:#222;color:#fff;padding:9px 14px;border-radius:10px;z-index:9;max-width:90%}
+</style></head><body>
+<header><h1>🔧 ShareLab <span class="mu">· trusted sharing of campus equipment &amp; spaces</span></h1>
+<div class="row"><label style="display:flex;gap:6px;align-items:center">Demo account
+<select id="who" onchange="setUser(this.value)"></select></label><span id="bell" class="mu"></span></div>
+<nav id="nav"></nav></header>
+<main id="app"></main><div id="toast" class="toast" style="display:none"></div>
+<script>
+const KEY="sharelab_v1";
+const dISO=n=>{const d=new Date();d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
+const seed=()=>({me:"u1",tab:"discover",seq:10,
+users:[
+{id:"u1",name:"Aarav Mehta",role:"user",org:"",bio:"B.Tech student, makes IoT prototypes",certs:[{n:"3D Printer Basics",s:"verified"}]},
+{id:"u2",name:"Meera Iyer",role:"user",org:"",bio:"Research scholar, photonics",certs:[{n:"Laser Safety",s:"verified"},{n:"3D Printer Basics",s:"verified"}]},
+{id:"u3",name:"Dr. Rao (Owner, Fab Lab)",role:"owner",org:"Fab Lab",bio:"Lab head",certs:[]},
+{id:"u4",name:"Kiran (Lab Manager)",role:"manager",org:"Fab Lab",bio:"Manages bookings",certs:[]},
+{id:"u5",name:"Admin (Institution)",role:"admin",org:"*",bio:"Verification &amp; oversight",certs:[]}],
+resources:[
+{id:"r1",name:"Laser Cutter (60W)",cat:"Fabrication",loc:"Fab Lab, Block C, Room 12",org:"Fab Lab",req:["Laser Safety"],sup:true,dep:500,max:3,rules:"Closed-toe shoes. Staff present during cutting. No PVC.",open:"09:00-18:00"},
+{id:"r2",name:"Prusa 3D Printer",cat:"Fabrication",loc:"Fab Lab, Block C, Room 12",org:"Fab Lab",req:["3D Printer Basics"],sup:false,dep:200,max:4,rules:"Remove prints within 1h of finishing.",open:"09:00-18:00"},
+{id:"r3",name:"Seminar Room B12",cat:"Space",loc:"Block B, Floor 1",org:"Fab Lab",req:[],sup:false,dep:0,max:4,rules:"Leave room as found. Max 20 people.",open:"09:00-18:00"},
+{id:"r4",name:"DSLR + Lighting Kit",cat:"Media",loc:"Media Cell, Block A",org:"Fab Lab",req:[],sup:false,dep:1000,max:6,rules:"Return with all cases, cards formatted.",open:"09:00-18:00"},
+{id:"r5",name:"Oscilloscope Bench",cat:"Testing",loc:"ECE Lab 3",org:"Fab Lab",req:["Electronics Lab Induction"],sup:false,dep:0,max:4,rules:"No mains-powered DUTs unattended.",open:"09:00-18:00"}],
+bookings:[],incidents:[],audit:[],notes:[]});
+let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}if(!S)S=seed();
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const U=id=>S.users.find(u=>u.id===id),R=id=>S.resources.find(r=>r.id===id),B=id=>S.bookings.find(b=>b.id===id);
+const me=()=>U(S.me),nid=p=>p+(++S.seq);
+const now=()=>new Date().toLocaleString([], {dateStyle:"short",timeStyle:"short"});
+const canManage=r=>me().role==="admin"||(["owner","manager"].includes(me().role)&&me().org===r.org);
+const isStaff=()=>["owner","manager","admin"].includes(me().role);
+function log(action,b,detail,rid){S.audit.unshift({t:now(),actor:me().name,aid:me().id,action,bid:b?b.id:"",uid:b?b.uid:"",rid:b?b.rid:(rid||""),detail:detail||""});}
+function note(uid,txt){S.notes.unshift({uid,txt,t:now()});}
+function toast(m){const t=document.getElementById("toast");t.textContent=m;t.style.display="block";setTimeout(()=>t.style.display="none",2600)}
+const hrs=(b)=>b.dur, wk=d=>Math.floor(new Date(d).getTime()/864e5/7);
+const overlap=(a,b)=>a.date===b.date&&a.start<b.start+b.dur&&b.start<a.start+a.dur;
+const conflicts=(x,ex)=>S.bookings.filter(b=>b.id!==ex&&b.rid===x.rid&&["approved","checked_in"].includes(b.status)&&overlap(b,x));
+const used30=uid=>S.bookings.filter(b=>b.uid===uid&&["approved","checked_in","returned"].includes(b.status)&&b.date>=dISO(-30)).reduce((s,b)=>s+b.dur,0);
+const weekHrs=(uid,rid,d)=>S.bookings.filter(b=>b.uid===uid&&b.rid===rid&&["pending","approved","checked_in","returned"].includes(b.status)&&wk(b.date)===wk(d)).reduce((s,b)=>s+b.dur,0);
+const LIMIT=6;
+function elig(u,r){const c=[];c.push({ok:true,t:"Account verified by institution"});
+r.req.forEach(q=>{const x=u.certs.find(c=>c.n===q);c.push({ok:!!x&&x.s==="verified",t:q+(x?(x.s==="verified"?" – verified":" – awaiting verification"):" – not on file")})});
+return c}
+const COND=["Excellent","Good","Fair","Damaged"];
+function setUser(id){S.me=id;S.tab="discover";save();render()}
+function go(t){S.tab=t;save();render()}
+/* ---------- actions ---------- */
+function book(rid){const r=R(rid),u=me(),g=k=>document.getElementById(k+"_"+rid).value;
+const x={id:nid("b"),rid,uid:u.id,date:g("d"),start:+g("s"),dur:+g("h"),why:g("w").trim(),status:"pending",checks:[],why2:""};
+if(!x.date||!x.why)return toast("Add a date and purpose.");
+const e=elig(u,r),fails=e.filter(c=>!c.ok);
+if(fails.length)return toast("Not eligible: "+fails[0].t);
+if(x.dur>r.max)return toast("Max "+r.max+"h per booking for this resource.");
+const wh=weekHrs(u.id,rid,x.date);if(wh+x.dur>LIMIT)return toast("Fair-use limit: "+LIMIT+"h/week per resource ("+wh+"h already used).");
+x.checks=e.map(c=>"✓ "+c.t).concat(["✓ Duration within "+r.max+"h limit","✓ Weekly fair-use: "+(wh+x.dur)+"/"+LIMIT+"h"]);
+const cf=conflicts(x);
+if(cf.length){x.status="waitlisted";x.why2="Slot already approved for another user; placed on waiting list in order of request time.";x.checks.push("⚠ Time conflict with an approved booking")}
+else x.checks.push("✓ No scheduling conflict");
+S.bookings.push(x);log("Request submitted ("+x.status+")",x,x.date+" "+x.start+":00, "+x.dur+"h – "+x.why);
+note(u.id,"Your request for "+r.name+" is "+x.status+".");S.users.filter(v=>v.org===r.org&&["owner","manager"].includes(v.role)).forEach(v=>note(v.id,"New request for "+r.name+" from "+u.name));
+save();go("bookings");toast("Request "+x.status)}
+function decide(id,act){const b=B(id),r=R(b.rid),why=document.getElementById("rs_"+id).value.trim();
+if(act!=="approved"&&!why)return toast("Please give a reason – the user will see it.");
+if(act==="approved"){const cf=conflicts(b,id);if(cf.length)return toast("Conflicts with an approved booking – waitlist or reject instead.")}
+b.status=act;b.why2=act==="approved"?(why||"Meets all requirements and fair-use rules."):why;b.by=me().name;
+log("Request "+act,b,b.why2);note(b.uid,r.name+": your request was "+act+". Reason: "+b.why2);save();render()}
+function cancel(id){const b=B(id),was=b.status;b.status="cancelled";b.why2="Cancelled by "+me().name;log("Booking cancelled",b,"was "+was);
+S.bookings.filter(w=>w.rid===b.rid&&w.status==="waitlisted"&&!conflicts(w,w.id)).slice(0,1).forEach(w=>{w.status="pending";w.why2="Promoted from waiting list after a cancellation; awaiting owner review.";log("Waitlist promoted",w,"slot freed");note(w.uid,"Good news: a slot opened for "+R(w.rid).name+". Your request is back under review.")});
+save();render()}
+function checkin(id){const b=B(id),c=document.getElementById("c_"+id).value,n=document.getElementById("n_"+id).value;b.status="checked_in";b.ci={c,n,t:now()};log("Check-in",b,"Condition: "+c+(n?" – "+n:""));save();render()}
+function ret(id){const b=B(id),c=document.getElementById("c_"+id).value,n=document.getElementById("n_"+id).value;b.status="returned";b.ro={c,n,t:now()};log("Returned",b,"Condition: "+c+(n?" – "+n:""));
+if(COND.indexOf(c)>COND.indexOf(b.ci.c)){S.incidents.push({id:nid("i"),bid:id,rid:b.rid,uid:b.uid,type:"Damage",txt:"Condition worsened: "+b.ci.c+" → "+c+". "+n,status:"open"});log("Damage flagged automatically",b,"Owner review required – no automatic penalty");S.users.filter(v=>v.org===R(b.rid).org&&["owner","manager"].includes(v.role)).forEach(v=>note(v.id,"Condition worsened on return: "+R(b.rid).name))}
+save();render()}
+function report(id){const b=B(id),t=document.getElementById("it_"+id).value,x=document.getElementById("ix_"+id).value.trim();if(!x)return toast("Describe the incident.");
+S.incidents.push({id:nid("i"),bid:id,rid:b.rid,uid:b.uid,type:t,txt:x,status:"open",by:me().name});log("Incident reported: "+t,b,x);
+S.users.filter(v=>v.org===R(b.rid).org&&["owner","manager"].includes(v.role)).forEach(v=>note(v.id,t+" reported on "+R(b.rid).name));save();render()}
+function overdue(id){const b=B(id);b.overdue=true;S.incidents.push({id:nid("i"),bid:id,rid:b.rid,uid:b.uid,type:"Delay",txt:"Not returned by scheduled end.",status:"open"});log("Marked overdue",b,"Reminder sent");note(b.uid,"Overdue: please return "+R(b.rid).name+" now.");save();render()}
+function resolve(id){const i=S.incidents.find(x=>x.id===id),n=document.getElementById("rn_"+id).value.trim();if(!n)return toast("Add a resolution note.");i.status="resolved";i.res=n;const b=B(i.bid);log("Incident resolved",b,n);note(i.uid,"Incident on "+R(i.rid).name+" resolved: "+n);save();render()}
+function addRes(){const g=k=>document.getElementById("n_"+k).value.trim();if(!g("name"))return toast("Name required.");
+S.resources.push({id:nid("r"),name:g("name"),cat:g("cat")||"Other",loc:g("loc")||"–",org:me().org==="*"?"Fab Lab":me().org,req:g("req")?g("req").split(",").map(s=>s.trim()):[],sup:document.getElementById("n_sup").checked,dep:+g("dep")||0,max:+g("max")||4,rules:g("rules")||"Follow institution rules.",open:"09:00-18:00"});
+log("Resource listed",null,g("name"),"");save();go("discover");toast("Listed – now visible to users")}
+function addCert(){const n=document.getElementById("cn").value.trim();if(!n)return;me().certs.push({n,s:"pending"});log("Certificate submitted",null,n);S.users.filter(v=>v.role==="admin"||v.role==="manager").forEach(v=>note(v.id,me().name+" submitted "+n));save();render()}
+function vcert(uid,i,ok){const c=U(uid).certs[i];c.s=ok?"verified":"rejected";log("Certificate "+c.s,null,U(uid).name+": "+c.n);note(uid,"Your "+c.n+" certificate was "+c.s+".");save();render()}
+/* ---------- views ---------- */
+const bl=b=>`<span class="st ${["approved","returned","checked_in"].includes(b.status)?"ok":["rejected","cancelled"].includes(b.status)?"bad":"warn"}">${b.status.replace("_"," ")}${b.overdue?" · overdue":""}</span>`;
+function discover(){const q=(window._q||"").toLowerCase(),c=window._c||"";
+const cats=[...new Set(S.resources.map(r=>r.cat))];
+let h=`<div class="row"><input style="flex:2;min-width:140px" placeholder="Search equipment, rooms…" value="${window._q||""}" oninput="window._q=this.value;render(true)"><select style="flex:1" onchange="window._c=this.value;render()"><option value="">All categories</option>${cats.map(x=>`<option ${x===c?"selected":""}>${x}</option>`).join("")}</select></div>`;
+if(me().role==="user"||true){}
+S.resources.filter(r=>(!c||r.cat===c)&&(!q||(r.name+r.cat+r.loc).toLowerCase().includes(q))).forEach(r=>{const e=elig(me(),r),ok=e.every(x=>x.ok),isU=me().role==="user";
+h+=`<div class="card"><div class="row" style="justify-content:space-between"><h3>${r.name}</h3><span class="chip">${r.cat}</span></div>
+<div class="mu">📍 ${r.loc} · 🕘 ${r.open} · max ${r.max}h/booking${r.dep?" · deposit ₹"+r.dep:""}${r.sup?" · staff-supervised":""}</div>
+<div class="mu" style="margin:4px 0">Rules: ${r.rules}</div>
+<div>${e.map(x=>`<span class="chip ${x.ok?"ok":"bad"}">${x.ok?"✓":"✗"} ${x.t}</span>`).join("")}</div>`;
+if(isU){h+=ok?`<details style="margin-top:8px"><summary><b>Request booking</b></summary><div class="grid">
+<div><label>Date</label><input type="date" id="d_${r.id}" min="${dISO(0)}" value="${dISO(1)}"></div>
+<div><label>Start</label><select id="s_${r.id}">${[9,10,11,12,13,14,15,16,17].map(h=>`<option value="${h}">${h}:00</option>`).join("")}</select></div>
+<div><label>Hours</label><select id="h_${r.id}">${[1,2,3,4,5,6].map(h=>`<option>${h}</option>`).join("")}</select></div></div>
+<label>Purpose (shown to owner)</label><input id="w_${r.id}" placeholder="e.g. enclosure for my sensor project"><div style="margin-top:8px"><button onclick="book('${r.id}')">Submit request</button></div></details>`:`<div class="bad" style="margin-top:6px">You can’t request this yet. Upload the missing certificate in <a href="#" onclick="go('profile');return false">Profile</a>.</div>`}
+h+=`</div>`});return h}
+function hist(b){return `<details><summary class="mu">Full history</summary>${S.audit.filter(a=>a.bid===b.id).reverse().map(a=>`<div class="log"><b>${a.action}</b> · ${a.actor} · ${a.t}<br><span class="mu">${a.detail}</span></div>`).join("")}</details>`}
+function myCard(b){const r=R(b.rid);let h=`<div class="card"><div class="row" style="justify-content:space-between"><h3>${r.name}</h3>${bl(b)}</div>
+<div class="mu">${b.date} · ${b.start}:00–${b.start+b.dur}:00 · ${b.why}</div>${b.why2?`<div style="margin-top:4px">💬 <b>Why:</b> ${b.why2}</div>`:""}
+${b.ci?`<div class="mu">Check-in: ${b.ci.c} ${b.ci.n||""} (${b.ci.t})</div>`:""}${b.ro?`<div class="mu">Return: ${b.ro.c} ${b.ro.n||""} (${b.ro.t})</div>`:""}`;
+const mine=b.uid===me().id;
+if(b.status==="waitlisted")h+=`<div class="mu">Waiting-list position: #${S.bookings.filter(w=>w.rid===b.rid&&w.status==="waitlisted").indexOf(b)+1}</div>`;
+const cond=id=>`<div class="grid"><div><label>Condition</label><select id="c_${id}">${COND.map(c=>`<option>${c}</option>`).join("")}</select></div><div style="grid-column:span 2"><label>Notes</label><input id="n_${id}" placeholder="scratches, missing parts…"></div></div>`;
+if(mine&&["pending","approved","waitlisted"].includes(b.status))h+=`<button class="s" onclick="cancel('${b.id}')">Cancel</button>`;
+if(mine&&b.status==="approved")h+=cond(b.id)+`<button class="g" onclick="checkin('${b.id}')">Check in (record initial condition)</button>`;
+if(mine&&b.status==="checked_in")h+=cond(b.id)+`<button class="g" onclick="ret('${b.id}')">Return (record final condition)</button>`;
+if(["checked_in","returned"].includes(b.status))h+=`<div class="grid"><div><label>Report</label><select id="it_${b.id}"><option>Damage</option><option>Delay</option><option>Conflict</option><option>Other</option></select></div><div style="grid-column:span 2"><label>Details</label><input id="ix_${b.id}"></div></div><button class="s" onclick="report('${b.id}')">Report incident</button> `;
+if(b.status==="checked_in"&&canManage(r)&&!b.overdue)h+=`<button class="w" onclick="overdue('${b.id}')">Simulate overdue</button>`;
+return h+hist(b)+`</div>`}
+function bookings(){const u=me();let h="";
+if(isStaff()){const mgd=S.bookings.filter(b=>canManage(R(b.rid)));
+const q=mgd.filter(b=>["pending","waitlisted"].includes(b.status)).sort((a,b)=>used30(a.uid)-used30(b.uid));
+h+=`<h2>Requests to review (${q.length})</h2><div class="mu">Sorted by fair-use priority: people with fewer recent hours come first. You make every final decision.</div>`;
+q.forEach((b,i)=>{const r=R(b.rid),us=U(b.uid);h+=`<div class="card"><div class="row" style="justify-content:space-between"><h3>${us.name} → ${r.name}</h3>${bl(b)}</div>
+<div class="mu">${b.date} · ${b.start}:00–${b.start+b.dur}:00 · “${b.why}”</div>
+<div class="mu">Priority #${i+1}: ${used30(us.id)}h used in last 30 days</div>
+<div style="margin:6px 0">${b.checks.map(c=>`<div class="${c[0]==="✓"?"ok":"warn"}" style="font-size:13px">${c}</div>`).join("")}</div>
+<input id="rs_${b.id}" placeholder="Reason (required to reject / waitlist)" value=""><div class="row" style="margin-top:8px">
+<button class="g" onclick="decide('${b.id}','approved')">Approve</button><button class="w" onclick="decide('${b.id}','waitlisted')">Waitlist</button><button class="r" onclick="decide('${b.id}','rejected')">Reject</button></div></div>`});
+if(!q.length)h+=`<div class="card mu">No pending requests.</div>`;
+const act=mgd.filter(b=>["approved","checked_in","returned"].includes(b.status)&&b.uid!==u.id);
+h+=`<h2>Active &amp; past bookings for your resources</h2>`+(act.map(b=>`<div class="card"><b>${U(b.uid).name}</b> · ${R(b.rid).name} ${bl(b)}<div class="mu">${b.date} ${b.start}:00 · ${b.dur}h${b.ci?" · in: "+b.ci.c:""}${b.ro?" · out: "+b.ro.c:""}</div>${b.status==="checked_in"&&!b.overdue?`<button class="w" onclick="overdue('${b.id}')">Simulate overdue</button>`:""}${hist(b)}</div>`).join("")||`<div class="card mu">None yet.</div>`);}
+const mine=S.bookings.filter(b=>b.uid===u.id).reverse();
+h+=`<h2>My bookings</h2>`+(mine.map(myCard).join("")||`<div class="card mu">No bookings yet. Find something in Discover.</div>`);return h}
+function resources(){let h=`<h2>List a new resource</h2><div class="card"><div class="grid"><div><label>Name</label><input id="n_name"></div><div><label>Category</label><input id="n_cat"></div><div><label>Location</label><input id="n_loc"></div>
+<div><label>Required certificates (comma-separated)</label><input id="n_req"></div><div><label>Deposit ₹</label><input id="n_dep" type="number"></div><div><label>Max hours</label><input id="n_max" type="number" value="4"></div></div>
+<label>Usage rules</label><input id="n_rules"><label style="margin:8px 0"><input type="checkbox" id="n_sup" style="width:auto"> Requires staff supervision</label><button onclick="addRes()">Publish listing</button></div>`;
+h+=`<h2>Incidents</h2>`;const inc=S.incidents.filter(i=>canManage(R(i.rid))).reverse();
+h+=inc.map(i=>`<div class="card"><b>${i.type}</b> · ${R(i.rid).name} · ${U(i.uid).name} <span class="st ${i.status==="open"?"warn":"ok"}">${i.status}</span><div>${i.txt}</div>${i.res?`<div class="mu">Resolution: ${i.res}</div>`:`<div class="row" style="margin-top:6px"><input id="rn_${i.id}" placeholder="Resolution note (deposit decision, repair…)" style="flex:1"><button onclick="resolve('${i.id}')">Resolve</button></div>`}</div>`).join("")||`<div class="card mu">No incidents.</div>`;return h}
+function profile(){const u=me();let h=`<h2>${u.name}</h2><div class="mu">Role: ${u.role} · ${u.bio}</div><h2>Certificates &amp; training</h2>`;
+h+=u.certs.map(c=>`<span class="chip ${c.s==="verified"?"ok":"warn"}">${c.n} – ${c.s}</span>`).join("")||`<div class="mu">None</div>`;
+if(u.role==="user")h+=`<div class="row" style="margin-top:10px"><input id="cn" placeholder="e.g. Laser Safety" style="flex:1"><button onclick="addCert()">Submit for verification</button></div><div class="mu">Only verified certificates unlock restricted equipment.</div>`;
+if(["manager","admin"].includes(u.role)){h+=`<h2>Verification queue</h2>`;let n=0;S.users.forEach(v=>v.certs.forEach((c,i)=>{if(c.s==="pending"){n++;h+=`<div class="card">${v.name}: <b>${c.n}</b><div class="row" style="margin-top:6px"><button class="g" onclick="vcert('${v.id}',${i},true)">Verify</button><button class="r" onclick="vcert('${v.id}',${i},false)">Reject</button></div></div>`}}));if(!n)h+=`<div class="card mu">Nothing pending.</div>`}
+h+=`<h2>Notifications</h2>`+(S.notes.filter(n=>n.uid===u.id).slice(0,15).map(n=>`<div class="log">${n.txt}<br><span class="mu">${n.t}</span></div>`).join("")||`<div class="mu">None</div>`);
+h+=`<div style="margin-top:20px"><button class="s" onclick="if(confirm('Reset demo data?')){S=seed();save();render()}">Reset demo data</button></div>`;return h}
+function activity(){const u=me();const a=S.audit.filter(x=>u.role==="admin"||x.aid===u.id||x.uid===u.id||(x.rid&&canManage(R(x.rid))));
+return `<h2>Audit trail</h2><div class="mu">Every approval, rejection, cancellation, check-in, return and incident is recorded here.</div>`+(a.map(x=>`<div class="log"><b>${x.action}</b>${x.rid?" · "+R(x.rid).name:""}<br><span class="mu">${x.actor} · ${x.t}${x.detail?" · "+x.detail:""}</span></div>`).join("")||`<div class="card mu">No activity yet.</div>`)}
+function render(keep){const u=me(),w=document.getElementById("who");
+w.innerHTML=S.users.map(x=>`<option value="${x.id}" ${x.id===u.id?"selected":""}>${x.name} (${x.role})</option>`).join("");
+const unread=S.notes.filter(n=>n.uid===u.id).length;document.getElementById("bell").textContent="🔔 "+unread;
+const tabs=[["discover","Discover"],["bookings",isStaff()?"Requests &amp; bookings":"My bookings"]];if(isStaff())tabs.push(["resources","Resources &amp; incidents"]);tabs.push(["profile","Profile &amp; alerts"],["activity","Audit trail"]);
+document.getElementById("nav").innerHTML=tabs.map(t=>`<button class="${S.tab===t[0]?"on":""}" onclick="go('${t[0]}')">${t[1]}</button>`).join("");
+if(keep){const el=document.activeElement,id=el&&el.id;}
+document.getElementById("app").innerHTML=({discover,bookings,resources,profile,activity})[S.tab]();
+if(keep){const i=document.querySelector("main input");if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}}}
+render();
+</script></body></html>
